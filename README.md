@@ -1,15 +1,15 @@
 # Week 2 OCR/LLM Pipeline
 
-Проект содержит конвейер для обработки PDF и изображений:
+A pipeline for processing PDFs and images:
 
-1. OCR и структурирование документов через **Docling** + **RapidOCR**.
-2. Предобработка изображений через OpenCV.
-3. Экспорт результата в Markdown и JSON.
-4. Генерация краткого аналитического отчёта на русском языке через **Ollama Cloud** (`gemma4:31b-cloud`) с интерфейсом LlamaIndex/OpenAI-like API.
+1. OCR and document structuring via **Docling** + **RapidOCR**.
+2. Image preprocessing via OpenCV.
+3. Export results to Markdown and JSON.
+4. Generate a concise analytical report via **Ollama Cloud** (`gemma4:31b-cloud`) through a LlamaIndex/OpenAI-like API.
 
-Исходный notebook сохранён в `notebooks/week2.ipynb`.
+The original notebook is saved at `notebooks/week2.ipynb`.
 
-## Структура
+## Structure
 
 ```text
 .
@@ -22,7 +22,7 @@
 └── README.md
 ```
 
-## Установка
+## Installation
 
 ```bash
 python -m venv .venv
@@ -30,19 +30,19 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Переменные окружения
+## Environment variables
 
-Для генерации отчётов через Ollama Cloud задайте API-ключ:
+To generate reports via Ollama Cloud, set an API key:
 
 ```bash
 export OLLAMA_API_KEY="your_api_key"
 ```
 
-В Google Colab можно использовать секрет `ocr_olama`, как в исходном notebook.
+In Google Colab, you can use the `ocr_olama` secret, as in the original notebook.
 
-## Запуск
+## Running
 
-Пример обработки документов из папки `ocr_samples`:
+Example: process documents from the `ocr_samples` folder:
 
 ```bash
 python src/ocr_llm_pipeline.py \
@@ -53,19 +53,19 @@ python src/ocr_llm_pipeline.py \
   --run-llm
 ```
 
-Поддерживаемые форматы: `.pdf`, `.jpg`, `.jpeg`, `.png`.
+Supported formats: `.pdf`, `.jpg`, `.jpeg`, `.png`.
 
-## Что создаётся
+## What gets generated
 
-Для каждого входного документа:
+For each input document:
 
-- Markdown-файл с распознанной структурой;
-- JSON-файл с объектным представлением Docling;
-- папка с изображениями/артефактами, если включён режим `--assets`;
-- текстовый аналитический отчёт, если включён `--run-llm`.
+- a Markdown file with the recognized structure;
+- a JSON file with the Docling object representation;
+- a folder with images/artifacts, if `--assets` is enabled;
+- a text analytical report, if `--run-llm` is enabled.
 
-## Примечания
+## Notes
 
-- Для Colab-версии используйте исходный notebook `notebooks/week2.ipynb`.
-- Для локального запуска используйте `src/ocr_llm_pipeline.py`.
-- В репозиторий не следует добавлять реальные документы, результаты OCR, API-ключи и временные файлы.
+- For the Colab version, use the original notebook `notebooks/week2.ipynb`.
+- For local runs, use `src/ocr_llm_pipeline.py`.
+- Do not commit real documents, OCR results, API keys, or temporary files to this repository.
