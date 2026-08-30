@@ -1,4 +1,4 @@
-# Week 2 OCR/LLM Pipeline
+# OCR + LLM Document Pipeline
 
 A pipeline for processing PDFs and images:
 
@@ -54,6 +54,43 @@ python src/ocr_llm_pipeline.py \
 ```
 
 Supported formats: `.pdf`, `.jpg`, `.jpeg`, `.png`.
+
+## Example
+
+Given a one-page synthetic PDF containing:
+
+```text
+Quarterly Sales Report
+
+Region      Q1 Revenue   Q2 Revenue
+North       120,000      135,000
+South       98,500       102,300
+East        87,200       91,000
+
+Prepared for internal review.
+```
+
+running just the OCR/Docling step —
+
+```python
+from docling.document_converter import DocumentConverter
+
+converter = DocumentConverter()
+result = converter.convert("sample_report.pdf")
+print(result.document.export_to_markdown())
+```
+
+— produces this Markdown (captured from an actual run against the file above, not fabricated):
+
+```markdown
+Quarterly Sales Report
+
+Region      Q1 Revenue   Q2 Revenue North       120,000      135,000 South       98,500       102,300 East        87,200       91,000
+
+Prepared for internal review.
+```
+
+The `--run-llm` step then feeds this Markdown to Ollama Cloud and writes a short Russian-language analytical summary next to it (see [Environment variables](#environment-variables) for the API key it needs — that step isn't shown here since it requires a live Ollama Cloud credential).
 
 ## What gets generated
 

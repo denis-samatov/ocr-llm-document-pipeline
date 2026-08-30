@@ -146,6 +146,10 @@ def run_llm_extraction(markdown_text: str, model_name: str = DEFAULT_MODEL) -> s
         timeout=360.0,
     )
 
+    # The prompt below is deliberately written in Russian and asks for a
+    # Russian-language report -- this pipeline targets Russian-language
+    # document analysis, so the output language is a feature, not
+    # untranslated text.
     prompt = f"""
 Перед тобой структурированное представление документа в формате Markdown.
 Твоя задача — внимательно проанализировать его и составить краткий аналитический отчет/резюме на русском языке (1-2 абзаца).

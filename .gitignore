@@ -4,6 +4,8 @@ __pycache__/
 .venv/
 venv/
 .env
+.pytest_cache/
+.ruff_cache/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -11,6 +13,7 @@ venv/
 # OCR input/output data
 ocr_samples/
 md_results*/
+markdown_results*/
 final_results*/
 *_assets/
 *.json
