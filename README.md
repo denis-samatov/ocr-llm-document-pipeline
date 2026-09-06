@@ -9,6 +9,15 @@ A pipeline for processing PDFs and images:
 
 The original notebook is saved at `notebooks/week2.ipynb`.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    A[PDF or image] --> B[Docling + RapidOCR]
+    B --> C[Markdown + JSON]
+    C --> D[Optional LLM report]
+```
+
 ## Structure
 
 ```text
@@ -91,6 +100,10 @@ Prepared for internal review.
 ```
 
 The `--run-llm` step then feeds this Markdown to Ollama Cloud and writes a short Russian-language analytical summary next to it (see [Environment variables](#environment-variables) for the API key it needs — that step isn't shown here since it requires a live Ollama Cloud credential).
+
+## Evaluation status
+
+The checked-in example is a synthetic smoke test for the public pipeline, not an OCR quality benchmark. The repository does not currently claim accuracy, latency, or production-readiness metrics. A future release should add a versioned evaluation set, exact-match and character-error metrics, deterministic reference outputs, and a documented hardware/runtime environment.
 
 ## What gets generated
 
