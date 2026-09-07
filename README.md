@@ -20,6 +20,8 @@ flowchart LR
 
 ## Structure
 
+The `examples/synthetic-report-v1/` directory contains the public smoke-test input generator and reference.
+
 ```text
 .
 ├── notebooks/
@@ -64,46 +66,33 @@ python src/ocr_llm_pipeline.py \
 
 Supported formats: `.pdf`, `.jpg`, `.jpeg`, `.png`.
 
-## Example
+## Reproducible synthetic input
 
-Given a one-page synthetic PDF containing:
+Start with the [versioned synthetic report fixture](examples/synthetic-report-v1/README.md). It includes a dependency-free PDF generator, an authored target Markdown table, and a concrete error-review checklist.
 
-```text
-Quarterly Sales Report
-
-Region      Q1 Revenue   Q2 Revenue
-North       120,000      135,000
-South       98,500       102,300
-East        87,200       91,000
-
-Prepared for internal review.
+```bash
+python examples/synthetic-report-v1/generate.py
+python src/ocr_llm_pipeline.py \
+  --input-dir examples/synthetic-report-v1/input \
+  --markdown-dir md_results/synthetic-report-v1
 ```
 
-running just the OCR/Docling step —
+Expected artifacts are `sample_report.md` and `sample_report.json` under the output directory. The reference is an authored target, not a captured output. The optional LLM stage is excluded from this command.
 
-```python
-from docling.document_converter import DocumentConverter
+## Evaluation status and limits
 
-converter = DocumentConverter()
-result = converter.convert("sample_report.pdf")
-print(result.document.export_to_markdown())
+This fixture is a one-page native-text PDF smoke test, not an OCR quality benchmark. Inspect whether the three table rows and their six values retain the correct associations: a paragraph containing every number can still be structurally wrong. The previous local example flattened the table, but its exact input and environment were not archived, so it is not used as a reproducible reference.
+
+The repository does not claim accuracy, latency, or production-readiness metrics. A useful next evaluation needs separate native-text, scanned, and image inputs; raw outputs; versioned references; documented environments; and error counts by document type. An LLM summary cannot repair missing source evidence reliably.
+
+## Tests
+
+The existing tests cover input-file selection, image preprocessing, and API-key lookup; they do not measure OCR accuracy or LLM factuality.
+
+```bash
+pip install -r requirements-dev.txt
+PYTHONPATH=src pytest -q
 ```
-
-— produces this Markdown (captured from an actual run against the file above, not fabricated):
-
-```markdown
-Quarterly Sales Report
-
-Region      Q1 Revenue   Q2 Revenue North       120,000      135,000 South       98,500       102,300 East        87,200       91,000
-
-Prepared for internal review.
-```
-
-The `--run-llm` step then feeds this Markdown to Ollama Cloud and writes a short Russian-language analytical summary next to it (see [Environment variables](#environment-variables) for the API key it needs — that step isn't shown here since it requires a live Ollama Cloud credential).
-
-## Evaluation status
-
-The checked-in example is a synthetic smoke test for the public pipeline, not an OCR quality benchmark. The repository does not currently claim accuracy, latency, or production-readiness metrics. A future release should add a versioned evaluation set, exact-match and character-error metrics, deterministic reference outputs, and a documented hardware/runtime environment.
 
 ## What gets generated
 
