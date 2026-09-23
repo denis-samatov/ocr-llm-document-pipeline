@@ -22,7 +22,6 @@ from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions, RapidOcrOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption, ImageFormatOption
 from docling_core.types.doc import ImageRefMode
-from llama_index.llms.openai_like import OpenAILike
 
 
 ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
@@ -68,8 +67,15 @@ def preprocess_image(image_path: str | Path) -> str:
         15,
     )
 
-    output_path = Path(tempfile.gettempdir()) / f"preprocessed_{image_path.name}"
-    cv2.imwrite(str(output_path), threshold)
+    fd, output_name = tempfile.mkstemp(prefix="ocr_preprocessed_", suffix=".png")
+    os.close(fd)
+    output_path = Path(output_name)
+    try:
+        if not cv2.imwrite(str(output_path), threshold):
+            raise OSError(f"Could not write preprocessed image: {output_path}")
+    except Exception:
+        output_path.unlink(missing_ok=True)
+        raise
     return str(output_path)
 
 
@@ -135,6 +141,8 @@ def run_ocr_pipeline(
 
 def run_llm_extraction(markdown_text: str, model_name: str = DEFAULT_MODEL) -> str:
     """Generate a short Russian analytical report from Markdown text via Ollama Cloud."""
+    from llama_index.llms.openai_like import OpenAILike
+
     api_key = get_ollama_api_key()
     llm = OpenAILike(
         model=model_name,
@@ -188,6 +196,9 @@ def process_documents(
     run_llm: bool = False,
     model_name: str = DEFAULT_MODEL,
 ) -> None:
+    if run_llm and not reports_dir:
+        raise ValueError("reports_dir must be provided when run_llm=True")
+
     converter = build_converter()
     markdown_dir = Path(markdown_dir)
     markdown_dir.mkdir(parents=True, exist_ok=True)
@@ -221,8 +232,7 @@ def process_documents(
         print(f"Markdown/JSON saved to: {markdown_dir}")
 
         if run_llm:
-            if reports_path is None:
-                raise ValueError("reports_dir must be provided when run_llm=True")
+            assert reports_path is not None
             report = run_llm_extraction(markdown_text, model_name=model_name)
             report_path = reports_path / f"{file_path.stem}_report.txt"
             report_path.write_text(report, encoding="utf-8")
