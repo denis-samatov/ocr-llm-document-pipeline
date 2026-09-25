@@ -54,7 +54,7 @@ In Google Colab, you can use the `ocr_olama` secret, as in the original notebook
 
 ## Running
 
-Example: process documents from the `ocr_samples` folder:
+For your own files, create `ocr_samples/` and place one or more supported PDFs/images there. The command below also requests an Ollama Cloud report, so it requires `OLLAMA_API_KEY`; omit `--run-llm` and `--reports-dir` for OCR-only processing:
 
 ```bash
 python src/ocr_llm_pipeline.py \
