@@ -24,12 +24,13 @@ The `examples/synthetic-report-v1/` directory contains the public smoke-test inp
 
 ```text
 .
-├── notebooks/
-│   └── week2.ipynb
-├── src/
-│   └── ocr_llm_pipeline.py
+├── examples/synthetic-report-v1/  # reproducible input generator and review guide
+├── notebooks/week2.ipynb         # original exploratory notebook
+├── src/ocr_llm_pipeline.py       # local CLI and pipeline
+├── tests/                        # behavior checks
+├── .github/workflows/ci.yml      # lint and tests
 ├── requirements.txt
-├── .gitignore
+├── requirements-dev.txt
 └── README.md
 ```
 
@@ -81,7 +82,7 @@ Expected artifacts are `sample_report.md` and `sample_report.json` under the out
 
 ## Evaluation status and limits
 
-This fixture is a one-page native-text PDF smoke test, not an OCR quality benchmark. Inspect whether the three table rows and their six values retain the correct associations: a paragraph containing every number can still be structurally wrong. The previous local example flattened the table, but its exact input and environment were not archived, so it is not used as a reproducible reference.
+This fixture is a one-page native-text PDF smoke test, not an OCR quality benchmark. Inspect whether the three table rows and their six values retain the correct associations: a paragraph containing every number can still be structurally wrong. A [captured run with raw Markdown, JSON, and package versions](examples/synthetic-report-v1/CAPTURED_RUN_2026-09-25.md) completed locally but flattened the table; it is evidence of a structural limitation, not a success metric.
 
 The repository does not claim accuracy, latency, or production-readiness metrics. A useful next evaluation needs separate native-text, scanned, and image inputs; raw outputs; versioned references; documented environments; and error counts by document type. An LLM summary cannot repair missing source evidence reliably.
 
@@ -102,6 +103,8 @@ For each input document:
 - a JSON file with the Docling object representation;
 - a folder with images/artifacts, if `--assets` is enabled;
 - a text analytical report, if `--run-llm` is enabled.
+
+When input files share a stem across formats (for example, `report.pdf` and `report.png`), output names include the format (`report_pdf.*` and `report_png.*`) so neither result is overwritten. If that name is already used by another input, a numeric suffix is added. Unique input stems keep their existing output names.
 
 ## Notes
 

@@ -9,6 +9,7 @@ Pipeline:
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import os
 import tempfile
@@ -99,9 +100,13 @@ def run_ocr_pipeline(
     converter: DocumentConverter,
     output_dir: str | Path,
     assets: bool = False,
+    output_stem: str | None = None,
 ) -> tuple[str, dict]:
     """Convert a document/image to Markdown and Docling JSON dictionary."""
     path = Path(file_path)
+    name = output_stem if output_stem is not None else path.stem
+    if not name or Path(name).name != name or "\\" in name or name in {".", ".."}:
+        raise ValueError("output_stem must be a single file name")
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -122,9 +127,9 @@ def run_ocr_pipeline(
     doc_dict = result.document.export_to_dict()
 
     if assets:
-        assets_dir = output_dir / f"{path.stem}_assets"
+        assets_dir = output_dir / f"{name}_assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
-        md_path = output_dir / f"{path.stem}.md"
+        md_path = output_dir / f"{name}.md"
 
         result.document.save_as_markdown(
             filename=md_path,
@@ -134,7 +139,7 @@ def run_ocr_pipeline(
         markdown_text = md_path.read_text(encoding="utf-8")
     else:
         markdown_text = result.document.export_to_markdown(image_mode=ImageRefMode.EMBEDDED)
-        (output_dir / f"{path.stem}.md").write_text(markdown_text, encoding="utf-8")
+        (output_dir / f"{name}.md").write_text(markdown_text, encoding="utf-8")
 
     return markdown_text, doc_dict
 
@@ -188,6 +193,30 @@ def iter_input_files(input_dir: str | Path) -> Iterable[Path]:
     )
 
 
+def _output_stems_for_files(files: list[Path]) -> dict[Path, str]:
+    """Preserve unique stems and disambiguate names shared across input formats."""
+    counts = Counter(path.stem.casefold() for path in files)
+    reserved = {path.stem.casefold() for path in files if counts[path.stem.casefold()] == 1}
+    used = set(reserved)
+    output_stems: dict[Path, str] = {}
+
+    for path in files:
+        if counts[path.stem.casefold()] == 1:
+            output_stems[path] = path.stem
+            continue
+
+        base = f"{path.stem}_{path.suffix[1:].lower()}"
+        candidate = base
+        index = 2
+        while candidate.casefold() in used:
+            candidate = f"{base}_{index}"
+            index += 1
+        output_stems[path] = candidate
+        used.add(candidate.casefold())
+
+    return output_stems
+
+
 def process_documents(
     input_dir: str | Path,
     markdown_dir: str | Path,
@@ -199,7 +228,9 @@ def process_documents(
     if run_llm and not reports_dir:
         raise ValueError("reports_dir must be provided when run_llm=True")
 
-    converter = build_converter()
+    files_to_process = list(iter_input_files(input_dir))
+    print(f"Found files to process: {len(files_to_process)}")
+    output_stems = _output_stems_for_files(files_to_process)
     markdown_dir = Path(markdown_dir)
     markdown_dir.mkdir(parents=True, exist_ok=True)
 
@@ -207,10 +238,11 @@ def process_documents(
     if reports_path:
         reports_path.mkdir(parents=True, exist_ok=True)
 
-    files_to_process = list(iter_input_files(input_dir))
-    print(f"Found files to process: {len(files_to_process)}")
-
+    if not files_to_process:
+        return
+    converter = build_converter()
     for file_path in files_to_process:
+        output_stem = output_stems[file_path]
         print(f"\nProcessing file: {file_path.name}")
         start_time = time.time()
 
@@ -219,9 +251,10 @@ def process_documents(
             converter=converter,
             output_dir=markdown_dir,
             assets=assets,
+            output_stem=output_stem,
         )
 
-        json_output_path = markdown_dir / f"{file_path.stem}.json"
+        json_output_path = markdown_dir / f"{output_stem}.json"
         json_output_path.write_text(
             json.dumps(doc_dict, ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -234,7 +267,7 @@ def process_documents(
         if run_llm:
             assert reports_path is not None
             report = run_llm_extraction(markdown_text, model_name=model_name)
-            report_path = reports_path / f"{file_path.stem}_report.txt"
+            report_path = reports_path / f"{output_stem}_report.txt"
             report_path.write_text(report, encoding="utf-8")
             print(f"Report saved to: {report_path}")
 
