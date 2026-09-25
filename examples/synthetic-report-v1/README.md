@@ -24,6 +24,6 @@ The generation step needs no packages, credentials, or network. The pipeline ste
 | Provenance | Exact generated PDF and source revision retained | Comparing output to a different local input |
 | Optional report | Statements supported by extracted values | A fluent summary concealing extraction errors |
 
-The earlier README showed flattened table rows from a local Docling run, but did not archive that exact input or environment. It is an example of a structure failure, not a reference output for this new fixture. No fresh Docling/Ollama run is claimed by this fixture addition.
+A [captured local run from 25 September 2026](CAPTURED_RUN_2026-09-25.md) archives the raw Markdown and JSON for this exact generated PDF. It completed but flattened the table into text; the JSON contains no table object. Use that output as an observed failure case, not as a target or quality benchmark. No Ollama call was made.
 
 For a reportable run, retain the source commit, Python and package versions, PDF SHA-256, command, raw Markdown/JSON, hardware, and wall time. Keep generated outputs outside Git unless deliberately reviewed as public synthetic evidence. Do not report accuracy or general speed from this one document.

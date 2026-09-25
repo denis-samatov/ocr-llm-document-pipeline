@@ -23,3 +23,6 @@ final_results*/
 .DS_Store
 .idea/
 .vscode/
+
+# Reviewed synthetic fixture evidence, deliberately versioned.
+!examples/synthetic-report-v1/captured-output/*.json
