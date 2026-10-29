@@ -39,8 +39,13 @@ The `examples/synthetic-report-v1/` directory contains the public smoke-test inp
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install --require-hashes -r requirements-lock.txt
 ```
+
+The lock was resolved for Python 3.12 on macOS during remediation. It is a
+resolved installation profile, not evidence of a new OCR/model qualification.
+For another platform, regenerate from `requirements.txt` with `uv pip compile`
+and record the target Python/platform and actual smoke results.
 
 ## Environment variables
 
@@ -88,6 +93,21 @@ The repository does not claim accuracy, latency, or production-readiness metrics
 
 ## Tests
 
+Use `--resume` to reuse completed files only when the input hash, pipeline source,
+recorded package versions/options and all output hashes still match. A sidecar
+`pipeline-status.json` is replaced atomically after each transition. OCR or LLM
+failure records `failed`; partial Markdown/JSON are not a completed result. The
+default remains fail-fast, and a resumed run retries failed/changed/corrupted files.
+Treat a cached LLM result as the old response: rerun without resume when qualifying
+a new remote model revision, since a provider can change an alias independently.
+
+For the authored one-page fixture, run
+`python examples/synthetic-report-v1/verify_structure.py path/to/sample_report.json`.
+It checks row/value associations, not just the presence of all numbers. The stored
+flattened captured output deliberately fails this check. An authored positive
+fixture in the unit test is not a newly captured OCR run. Native, scanned and image
+quality still require actual separate evaluations before claiming accuracy.
+
 The existing tests cover input-file selection, image preprocessing, and API-key lookup; they do not measure OCR accuracy or LLM factuality.
 
 ```bash
@@ -104,7 +124,8 @@ For each input document:
 - a folder with images/artifacts, if `--assets` is enabled;
 - a text analytical report, if `--run-llm` is enabled.
 
-When input files share a stem across formats (for example, `report.pdf` and `report.png`), output names include the format (`report_pdf.*` and `report_png.*`) so neither result is overwritten. If that name is already used by another input, a numeric suffix is added. Unique input stems keep their existing output names.
+When input files share a stem across formats (for example, `report.pdf` and `report.png`), output names include the format (`report_pdf.*` and `report_png.*`) so neither result is overwritten. If that name is already used by another input, a numeric suffix is added. Unique input stems keep their existing output names except `pipeline-status`,
+which is reserved for the processing manifest. That stem is disambiguated too.
 
 ## Notes
 

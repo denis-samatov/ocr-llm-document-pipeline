@@ -9,6 +9,8 @@ Pipeline:
 from __future__ import annotations
 
 import argparse
+import hashlib
+from importlib import metadata
 from collections import Counter
 import json
 import os
@@ -197,11 +199,11 @@ def _output_stems_for_files(files: list[Path]) -> dict[Path, str]:
     """Preserve unique stems and disambiguate names shared across input formats."""
     counts = Counter(path.stem.casefold() for path in files)
     reserved = {path.stem.casefold() for path in files if counts[path.stem.casefold()] == 1}
-    used = set(reserved)
+    used = reserved | {"pipeline-status"}
     output_stems: dict[Path, str] = {}
 
     for path in files:
-        if counts[path.stem.casefold()] == 1:
+        if counts[path.stem.casefold()] == 1 and path.stem.casefold() != "pipeline-status":
             output_stems[path] = path.stem
             continue
 
@@ -217,6 +219,26 @@ def _output_stems_for_files(files: list[Path]) -> dict[Path, str]:
     return output_stems
 
 
+def _digest(path: Path) -> str:
+    value = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            value.update(chunk)
+    return value.hexdigest()
+
+
+def _write_status(path: Path, value: dict) -> None:
+    fd, temporary = tempfile.mkstemp(prefix=".pipeline-status-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(value, stream, ensure_ascii=False, indent=2, allow_nan=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
 def process_documents(
     input_dir: str | Path,
     markdown_dir: str | Path,
@@ -224,52 +246,80 @@ def process_documents(
     assets: bool = False,
     run_llm: bool = False,
     model_name: str = DEFAULT_MODEL,
+    resume: bool = False,
 ) -> None:
     if run_llm and not reports_dir:
         raise ValueError("reports_dir must be provided when run_llm=True")
-
-    files_to_process = list(iter_input_files(input_dir))
-    print(f"Found files to process: {len(files_to_process)}")
-    output_stems = _output_stems_for_files(files_to_process)
+    files = list(iter_input_files(input_dir))
+    output_stems = _output_stems_for_files(files)
     markdown_dir = Path(markdown_dir)
     markdown_dir.mkdir(parents=True, exist_ok=True)
-
     reports_path = Path(reports_dir) if reports_dir else None
     if reports_path:
         reports_path.mkdir(parents=True, exist_ok=True)
-
-    if not files_to_process:
+    print(f"Found files to process: {len(files)}")
+    if not files:
         return
-    converter = build_converter()
-    for file_path in files_to_process:
-        output_stem = output_stems[file_path]
-        print(f"\nProcessing file: {file_path.name}")
-        start_time = time.time()
 
-        markdown_text, doc_dict = run_ocr_pipeline(
-            file_path=file_path,
-            converter=converter,
-            output_dir=markdown_dir,
-            assets=assets,
-            output_stem=output_stem,
-        )
+    status_path = markdown_dir / "pipeline-status.json"
+    status = {"version": 1, "files": {}}
+    if resume and status_path.exists():
+        status = json.loads(status_path.read_text(encoding="utf-8"))
+        if not isinstance(status, dict) or status.get("version") != 1 or not isinstance(status.get("files"), dict):
+            raise ValueError("Invalid pipeline status manifest")
+    versions = {}
+    for package in ("docling", "docling-core", "rapidocr-onnxruntime", "opencv-python-headless"):
+        try:
+            versions[package] = metadata.version(package)
+        except metadata.PackageNotFoundError:
+            versions[package] = "unavailable"
+    signature = {"pipeline_sha256": _digest(Path(__file__)), "packages": versions,
+                 "assets": assets, "run_llm": run_llm, "model_name": model_name}
 
-        json_output_path = markdown_dir / f"{output_stem}.json"
-        json_output_path.write_text(
-            json.dumps(doc_dict, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-
-        elapsed = time.time() - start_time
-        print(f"OCR completed in {elapsed:.2f} sec")
-        print(f"Markdown/JSON saved to: {markdown_dir}")
-
+    def artifacts(stem: str) -> list[Path]:
+        paths = [markdown_dir / f"{stem}.md", markdown_dir / f"{stem}.json"]
         if run_llm:
-            assert reports_path is not None
-            report = run_llm_extraction(markdown_text, model_name=model_name)
-            report_path = reports_path / f"{output_stem}_report.txt"
-            report_path.write_text(report, encoding="utf-8")
-            print(f"Report saved to: {report_path}")
+            paths.append(reports_path / f"{stem}_report.txt")
+        if assets:
+            paths.extend(sorted(p for p in (markdown_dir / f"{stem}_assets").rglob("*") if p.is_file()))
+        return paths
+
+    converter = None
+    for source in files:
+        stem = output_stems[source]
+        identity = {**signature, "source_sha256": _digest(source)}
+        previous = status["files"].get(source.name, {})
+        expected = artifacts(stem)
+        if (resume and previous.get("state") == "complete" and previous.get("identity") == identity
+                and previous.get("artifacts") == {str(p.resolve()): _digest(p) for p in expected if p.is_file()}
+                and all(p.is_file() for p in expected)):
+            print(f"Skipping verified completed file: {source.name}")
+            continue
+        print(f"\nProcessing file: {source.name}")
+        start_time = time.monotonic()
+        record = {"state": "processing", "identity": identity}
+        status["files"][source.name] = record
+        _write_status(status_path, status)
+        try:
+            if converter is None:
+                converter = build_converter()
+            markdown_text, document = run_ocr_pipeline(source, converter, markdown_dir, assets, stem)
+            (markdown_dir / f"{stem}.json").write_text(
+                json.dumps(document, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8"
+            )
+            if run_llm:
+                report = run_llm_extraction(markdown_text, model_name=model_name)
+                (reports_path / f"{stem}_report.txt").write_text(report, encoding="utf-8")
+            if _digest(source) != identity["source_sha256"]:
+                raise RuntimeError("Source changed during processing")
+            record.update(state="complete", artifacts={str(p.resolve()): _digest(p) for p in artifacts(stem)})
+        except Exception as error:
+            record.update(state="failed", error_type=type(error).__name__)
+            _write_status(status_path, status)
+            raise
+        _write_status(status_path, status)
+        print(f"Completed file: {source.name} in {time.monotonic() - start_time:.2f} sec")
+        print(f"Markdown/JSON saved to: {markdown_dir}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -277,6 +327,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input-dir", required=True, help="Directory with PDF/images")
     parser.add_argument("--markdown-dir", required=True, help="Directory for Markdown/JSON OCR results")
     parser.add_argument("--reports-dir", default=None, help="Directory for LLM reports")
+    parser.add_argument("--resume", action="store_true", help="Reuse only hash-verified completed outputs")
     parser.add_argument("--assets", action="store_true", help="Save extracted images as referenced assets")
     parser.add_argument("--run-llm", action="store_true", help="Generate LLM reports from Markdown")
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Ollama Cloud model name")
@@ -292,6 +343,7 @@ def main() -> None:
         assets=args.assets,
         run_llm=args.run_llm,
         model_name=args.model,
+        resume=args.resume,
     )
 
 
