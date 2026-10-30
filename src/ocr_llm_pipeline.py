@@ -268,7 +268,10 @@ def process_documents(
         if not isinstance(status, dict) or status.get("version") != 1 or not isinstance(status.get("files"), dict):
             raise ValueError("Invalid pipeline status manifest")
     versions = {}
-    for package in ("docling", "docling-core", "rapidocr-onnxruntime", "opencv-python-headless"):
+    packages = ["docling", "docling-core", "rapidocr-onnxruntime", "opencv-python-headless"]
+    if run_llm:
+        packages += ["llama-index-core", "llama-index-llms-openai-like", "openai"]
+    for package in packages:
         try:
             versions[package] = metadata.version(package)
         except metadata.PackageNotFoundError:
