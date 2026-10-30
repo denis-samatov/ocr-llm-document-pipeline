@@ -132,3 +132,13 @@ which is reserved for the processing manifest. That stem is disambiguated too.
 - For the Colab version, use the original notebook `notebooks/week2.ipynb`.
 - For local runs, use `src/ocr_llm_pipeline.py`.
 - Do not commit real documents, OCR results, API keys, or temporary files to this repository.
+
+For `--run-llm`, resume identity also includes the installed `llama-index-core`,
+`llama-index-llms-openai-like`, and `openai` versions. Upgrading the report adapter invalidates
+the old completed result even when source/OCR options stay identical. This is dependency-cache
+correctness, not verification of a remote model revision or response factuality.
+
+The first real Docling/RapidOCR/formula conversion may download upstream model artifacts and
+allocate substantial runtime resources. Qualify its model/cache/network policy on the target
+host before a fresh conversion. Installing dependencies and passing the unit tests does not
+qualify that model-loading stage; no model or document download is performed by the tests.

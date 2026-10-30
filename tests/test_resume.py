@@ -70,3 +70,24 @@ def test_status_sidecar_never_overwrites_document_json(tmp_path, monkeypatch, na
     assert all(record["state"] == "complete" for record in manifest["files"].values())
     pipeline.process_documents(inputs, output, resume=True)
     assert len(calls) == len(names)
+
+
+def test_resume_invalidates_changed_llm_adapter_version(tmp_path, monkeypatch):
+    inputs, source, output, calls = prepare(tmp_path, monkeypatch)
+    reports = tmp_path / "reports"
+    adapter_version = ["1"]
+    monkeypatch.setattr(pipeline.metadata, "version", lambda package:
+                        adapter_version[0] if package == "llama-index-llms-openai-like" else "fixed")
+    responses = []
+
+    def report(*args, **kwargs):
+        responses.append("synthetic response")
+        return responses[-1]
+
+    monkeypatch.setattr(pipeline, "run_llm_extraction", report)
+    pipeline.process_documents(inputs, output, reports, run_llm=True, resume=True)
+    pipeline.process_documents(inputs, output, reports, run_llm=True, resume=True)
+    assert len(responses) == 1
+    adapter_version[0] = "2"
+    pipeline.process_documents(inputs, output, reports, run_llm=True, resume=True)
+    assert len(responses) == 2
